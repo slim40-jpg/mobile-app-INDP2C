@@ -11,7 +11,6 @@ dependencies:
   flutter:
     sdk: flutter
 
-  cupertino_icons: ^1.0.8
   firebase_core: ^2.24.2
   firebase_auth: ^4.16.1
   cloud_firestore: ^4.15.1
@@ -30,5 +29,10 @@ flutter:
 
   assets:
     - assets/images/icon.png
+    - assets/images/default-avatar.jpg
+    - assets/images/djerba.jpg
+    - assets/images/sahara.jpg
+    - assets/images/sidi_bou_said.jpg
+    - assets/images/tunis_medina.jpg
 
 
