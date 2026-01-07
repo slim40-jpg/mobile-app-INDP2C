@@ -434,21 +434,39 @@ class DatabaseService {
   }
 
   // Get trips by agency
+  // In DatabaseService - Update getTripsByAgency method
   Stream<List<Trip>> getTripsByAgency(String agencyId) {
+    print('🏢 getTripsByAgency() called for agency: $agencyId');
+
     return tripsCollection
         .where('agencyId', isEqualTo: agencyId)
         .orderBy('createdAt', descending: true)
         .snapshots()
+        .handleError((error) {
+      print('❌ Error in getTripsByAgency stream: $error');
+      print('❌ Error details: ${error.toString()}');
+      return Stream.value([]);
+    })
         .map((snapshot) {
+      print('📦 Received ${snapshot.docs.length} trips for agency: $agencyId');
+
       try {
-        return snapshot.docs.map(_tripFromFirestore).toList();
+        final trips = snapshot.docs.map(_tripFromFirestore).toList();
+        print('✅ Successfully parsed ${trips.length} trips');
+
+        // Debug each trip
+        for (var trip in trips) {
+          print('   📄 ${trip.title} - Status: ${trip.status}');
+        }
+
+        return trips;
       } catch (e) {
-        print('Error parsing trips by agency: $e');
+        print('❌ Error parsing trips in getTripsByAgency: $e');
+        print('❌ Stack trace: ${e.toString()}');
         return [];
       }
     });
   }
-
   // Create new trip
   Future<void> createTrip(Trip trip) async {
     try {

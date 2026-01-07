@@ -142,38 +142,53 @@ class _PublishTripScreenState extends State<PublishTripScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: InkWell(
-                      onTap: () => _selectDate(context, isStartDate: true),
-                      child: InputDecorator(
-                        decoration: InputDecoration(
-                          labelText: 'Start Date',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.calendar_today),
-                        ),
-                        child: Text(
-                          _startDate == null
-                              ? 'Select start date'
-                              : '${_startDate!.day}/${_startDate!.month}/${_startDate!.year}',
-                        ),
+                    child: TextFormField(
+                      readOnly: true,
+                      decoration: InputDecoration(
+                        labelText: 'Start Date',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.calendar_today),
+                        hintText: 'Select start date',
                       ),
+                      controller: TextEditingController(
+                        text: _startDate == null
+                            ? ''
+                            : '${_startDate!.day}/${_startDate!.month}/${_startDate!.year}',
+                      ),
+                      onTap: () => _selectDate(context, isStartDate: true),
+                      validator: (value) {
+                        if (_startDate == null) {
+                          return 'Please select a start date';
+                        }
+                        return null;
+                      },
                     ),
                   ),
                   SizedBox(width: 16),
                   Expanded(
-                    child: InkWell(
-                      onTap: () => _selectDate(context, isStartDate: false),
-                      child: InputDecorator(
-                        decoration: InputDecoration(
-                          labelText: 'End Date',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.calendar_today),
-                        ),
-                        child: Text(
-                          _endDate == null
-                              ? 'Select end date'
-                              : '${_endDate!.day}/${_endDate!.month}/${_endDate!.year}',
-                        ),
+                    child: TextFormField(
+                      readOnly: true,
+                      decoration: InputDecoration(
+                        labelText: 'End Date',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.calendar_today),
+                        hintText: 'Select end date',
                       ),
+                      controller: TextEditingController(
+                        text: _endDate == null
+                            ? ''
+                            : '${_endDate!.day}/${_endDate!.month}/${_endDate!.year}',
+                      ),
+                      onTap: () => _selectDate(context, isStartDate: false),
+                      validator: (value) {
+                        if (_endDate == null) {
+                          return 'Please select an end date';
+                        }
+                        if (_startDate != null && _endDate!.isBefore(_startDate!)) {
+                          return 'End date must be after start date';
+                        }
+                        return null;
+                      },
                     ),
                   ),
                 ],
@@ -306,24 +321,87 @@ class _PublishTripScreenState extends State<PublishTripScreen> {
   }
 
   Future<void> _selectDate(BuildContext context, {required bool isStartDate}) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime(2025, 12, 31),
-    );
+    print('📅 Date picker triggered for ${isStartDate ? 'start' : 'end'} date');
 
-    if (picked != null) {
-      setState(() {
-        if (isStartDate) {
-          _startDate = picked;
-        } else {
-          _endDate = picked;
-        }
-      });
+    // Get current date
+    final now = DateTime.now();
+    print('📅 Current date: $now');
+
+    // Set proper date ranges
+    DateTime initialDate;
+    DateTime firstDate;
+    DateTime lastDate;
+
+    if (isStartDate) {
+      // For start date: can start from today, up to 1 year from now
+      initialDate = _startDate ?? now;
+      firstDate = now;
+      lastDate = DateTime(now.year + 1, 12, 31); // 1 year from now
+    } else {
+      // For end date: if start date is set, end date must be after start date
+      // If no start date, end date can start from today
+      if (_startDate != null) {
+        initialDate = _endDate ?? _startDate!.add(Duration(days: 1));
+        firstDate = _startDate!;
+        lastDate = DateTime(_startDate!.year + 1, 12, 31);
+      } else {
+        initialDate = _endDate ?? now.add(Duration(days: 1));
+        firstDate = now;
+        lastDate = DateTime(now.year + 1, 12, 31);
+      }
+    }
+
+    print('📅 Picker settings:');
+    print('   - Initial: $initialDate');
+    print('   - First: $firstDate');
+    print('   - Last: $lastDate');
+
+    try {
+      final DateTime? picked = await showDatePicker(
+        context: context,
+        initialDate: initialDate,
+        firstDate: firstDate,
+        lastDate: lastDate,
+        builder: (context, child) {
+          return Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: ColorScheme.light(
+                primary: Colors.blue,
+                onPrimary: Colors.white,
+              ),
+            ),
+            child: child!,
+          );
+        },
+      );
+
+      if (picked != null) {
+        print('✅ Date selected: ${picked.day}/${picked.month}/${picked.year}');
+
+        setState(() {
+          if (isStartDate) {
+            _startDate = picked;
+            // If end date exists and is before new start date, clear it
+            if (_endDate != null && _endDate!.isBefore(picked)) {
+              _endDate = null;
+            }
+          } else {
+            _endDate = picked;
+          }
+        });
+      } else {
+        print('❌ Date selection cancelled');
+      }
+    } catch (e) {
+      print('❌ Error in date picker: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error selecting date: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
-
   void _addTripStop() {
     showDialog(
       context: context,

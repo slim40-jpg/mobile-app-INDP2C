@@ -84,38 +84,32 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
-  bool _databaseInitialized = false;
+  bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
-    _initializeDatabase();
+    _initDatabase();
   }
 
-  Future<void> _initializeDatabase() async {
-    // Wait for a moment to ensure providers are ready
-    await Future.delayed(Duration(milliseconds: 100));
+  Future<void> _initDatabase() async {
+    print('🔧 AuthWrapper: Starting database init');
 
-    try {
-      print('🔧 Initializing database from AuthWrapper...');
-      final databaseService = Provider.of<DatabaseService>(
-        context,
-        listen: false,
-      );
-      await databaseService.initializeDatabase();
-      print('✅ Database initialization complete');
-    } catch (e) {
-      print('❌ Error initializing database: $e');
-    }
+    final db = Provider.of<DatabaseService>(
+      context,
+      listen: false,
+    );
+
+    await db.initializeDatabase();
 
     setState(() {
-      _databaseInitialized = true;
+      _initialized = true;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_databaseInitialized) {
+    if (!_initialized) {
       return Scaffold(
         body: Center(
           child: Column(
@@ -130,21 +124,35 @@ class _AuthWrapperState extends State<AuthWrapper> {
       );
     }
 
-    final auth = Provider.of<AuthService>(context, listen: false);
     final user = Provider.of<AppUser?>(context);
 
-    // After database is initialized, check authentication state
     if (user == null) {
+      print('👤 AuthWrapper: No user, showing LoginScreen');
       return LoginScreen();
     }
 
+    // DEBUG: Print user role
+    print('👤 AuthWrapper: User logged in');
+    print('   - User ID: ${user.userId}');
+    print('   - User Role: ${user.role}');
+    print('   - Role string: ${user.role.toString()}');
+    print('   - Is Tourist: ${user.role == UserRole.Tourist}');
+    print('   - Is Agency: ${user.role == UserRole.Agency}');
+    print('   - Is Admin: ${user.role == UserRole.Admin}');
+
     switch (user.role) {
       case UserRole.Tourist:
+        print('📍 Redirecting to Tourist HomeScreen');
         return HomeScreen();
       case UserRole.Agency:
+        print('📍 Redirecting to AgencyDashboardScreen');
         return AgencyDashboardScreen();
       case UserRole.Admin:
+        print('📍 Redirecting to AdminDashboardScreen');
         return AdminDashboardScreen();
+      default:
+        print('⚠️ Unknown role, defaulting to HomeScreen');
+        return HomeScreen();
     }
   }
 }

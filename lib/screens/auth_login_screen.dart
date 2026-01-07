@@ -36,17 +36,36 @@ class _LoginScreenState extends State<LoginScreen> {
       _errorMessage = '';
     });
 
+    print('🔐 Login attempt started...');
+
     try {
       final auth = Provider.of<AuthService>(context, listen: false);
-      await auth.login(
+
+      print('📞 Calling auth.login()...');
+      final result = await auth.login(
         _emailController.text.trim(),
         _passwordController.text.trim(),
       );
 
-      // Navigation is handled by AuthWrapper in main.dart
-      // If login is successful, AuthWrapper will automatically redirect
-      // to the appropriate screen based on user role
+      print('✅ auth.login() completed');
+      print('   - Result: $result');
+
+      if (result == true) {
+        print('🎉 Login successful! AuthWrapper should redirect...');
+
+        // Login successful - AuthWrapper will handle navigation
+        // We don't need to navigate manually
+
+      } else {
+        print('❌ Login failed - result is false');
+        setState(() {
+          _errorMessage = 'Invalid email or password';
+          _isLoading = false;
+        });
+      }
+
     } catch (e) {
+      print('💥 Login error: $e');
       setState(() {
         _errorMessage = _getErrorMessage(e);
         _isLoading = false;
