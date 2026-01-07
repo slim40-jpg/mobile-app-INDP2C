@@ -1,4 +1,4 @@
-// services/auth_service.dart - CORRECTED VERSION
+// services/auth_service.dart - UPDATED TO SAVE TO FIRESTORE
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user.dart';
@@ -6,6 +6,7 @@ import '../models/user.dart';
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
   AppUser? _currentUser;
 
   AppUser? get currentUser => _currentUser;
@@ -71,13 +72,62 @@ class AuthService {
         return null;
       }
 
-      // Get additional user data from Firestore
-      final userDoc = await _firestore.collection('users').doc(firebaseUser.uid).get();
-      final userData = userDoc.data();
+      try {
+        // Get additional user data from Firestore
+        final userDoc = await _firestore.collection('users').doc(firebaseUser.uid).get();
 
-      _currentUser = _userFromFirebase(firebaseUser, userData);
-      return _currentUser;
+        if (!userDoc.exists) {
+          // User exists in Auth but not in Firestore - create Firestore document
+          await _createUserInFirestore(firebaseUser, 'Tourist');
+          final newDoc = await _firestore.collection('users').doc(firebaseUser.uid).get();
+          final userData = newDoc.data();
+          _currentUser = _userFromFirebase(firebaseUser, userData);
+        } else {
+          final userData = userDoc.data();
+          _currentUser = _userFromFirebase(firebaseUser, userData);
+        }
+
+        return _currentUser;
+      } catch (e) {
+        print('Error loading user from Firestore: $e');
+        return null;
+      }
     });
+  }
+
+  // Create user document in Firestore
+  Future<void> _createUserInFirestore(User firebaseUser, String role, {Map<String, dynamic>? additionalData}) async {
+    try {
+      Map<String, dynamic> userData = {
+        'userId': firebaseUser.uid,
+        'name': firebaseUser.displayName ?? firebaseUser.email?.split('@').first ?? 'User',
+        'email': firebaseUser.email ?? '',
+        'role': role,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      // Add role-specific data
+      if (role == 'Agency' && additionalData != null) {
+        userData.addAll({
+          'agencyId': additionalData['agencyId'] ?? 'agency_${DateTime.now().millisecondsSinceEpoch}',
+          'bio': additionalData['bio'] ?? '',
+          'contactInfo': additionalData['contactInfo'] ?? '',
+        });
+      } else if (role == 'Tourist' && additionalData != null) {
+        userData.addAll({
+          'preferences': additionalData['preferences'] ?? [],
+        });
+      }
+
+      // Save to Firestore
+      await _firestore.collection('users').doc(firebaseUser.uid).set(userData);
+
+      print('User created in Firestore: ${firebaseUser.uid}');
+    } catch (e) {
+      print('Error creating user in Firestore: $e');
+      rethrow;
+    }
   }
 
   // Login with email and password
@@ -90,9 +140,18 @@ class AuthService {
 
       // Get user data from Firestore
       final userDoc = await _firestore.collection('users').doc(userCredential.user!.uid).get();
-      final userData = userDoc.data();
 
-      _currentUser = _userFromFirebase(userCredential.user, userData);
+      if (!userDoc.exists) {
+        // Create user in Firestore if doesn't exist
+        await _createUserInFirestore(userCredential.user!, 'Tourist');
+        final newDoc = await _firestore.collection('users').doc(userCredential.user!.uid).get();
+        final userData = newDoc.data();
+        _currentUser = _userFromFirebase(userCredential.user, userData);
+      } else {
+        final userData = userDoc.data();
+        _currentUser = _userFromFirebase(userCredential.user, userData);
+      }
+
       return _currentUser;
     } catch (e) {
       print('Login error: $e');
@@ -109,38 +168,25 @@ class AuthService {
     Map<String, dynamic>? additionalData,
   }) async {
     try {
-      // Create user in Firebase Auth
+      // 1. Create user in Firebase Auth
       final userCredential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      // Prepare user data for Firestore
-      Map<String, dynamic> userData = {
-        'name': name,
-        'email': email,
-        'role': role.toString().split('.').last,
-        'createdAt': FieldValue.serverTimestamp(),
-      };
-
-      // Add role-specific data
-      if (role == UserRole.Agency && additionalData != null) {
-        userData.addAll({
-          'agencyId': 'agency_${DateTime.now().millisecondsSinceEpoch}',
-          'bio': additionalData['bio'] ?? '',
-          'contactInfo': additionalData['contactInfo'] ?? '',
-        });
-      } else if (role == UserRole.Tourist && additionalData != null) {
-        userData.addAll({
-          'preferences': additionalData['preferences'] ?? [],
-        });
-      }
-
-      // Save user data to Firestore
-      await _firestore.collection('users').doc(userCredential.user!.uid).set(userData);
-
-      // Update user display name
+      // 2. Update display name
       await userCredential.user!.updateDisplayName(name);
+
+      // 3. Create user document in Firestore
+      await _createUserInFirestore(
+        userCredential.user!,
+        role.toString().split('.').last,
+        additionalData: additionalData,
+      );
+
+      // 4. Get the created user data
+      final userDoc = await _firestore.collection('users').doc(userCredential.user!.uid).get();
+      final userData = userDoc.data();
 
       _currentUser = _userFromFirebase(userCredential.user, userData);
       return _currentUser;
@@ -176,16 +222,25 @@ class AuthService {
     final user = _auth.currentUser;
     if (user != null) {
       // Update in Firestore
-      await _firestore.collection('users').doc(user.uid).update(updates);
+      await _firestore.collection('users').doc(user.uid).update({
+        ...updates,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
 
       // Update locally
       if (_currentUser != null) {
         if (updates.containsKey('name') && _currentUser is Tourist) {
-          (_currentUser as Tourist).name = updates['name'];
+          (_currentUser as Tourist).name = updates['name'] as String;
         } else if (updates.containsKey('name') && _currentUser is Agency) {
-          (_currentUser as Agency).name = updates['name'];
+          (_currentUser as Agency).name = updates['name'] as String;
         }
       }
     }
+  }
+
+  // Check if user document exists in Firestore
+  Future<bool> userExistsInFirestore(String userId) async {
+    final doc = await _firestore.collection('users').doc(userId).get();
+    return doc.exists;
   }
 }

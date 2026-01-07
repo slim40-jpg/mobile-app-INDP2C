@@ -16,6 +16,7 @@ import 'services/auth_service.dart';
 import 'services/database_service.dart';
 import 'models/user.dart';
 import 'models/trip.dart';
+import 'screens/debug_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
@@ -58,6 +59,7 @@ class TourismApp extends StatelessWidget {
         initialRoute: '/',
         routes: {
           '/': (context) => AuthWrapper(),
+          '/debug': (context) => DebugScreen(),
           '/login': (context) => LoginScreen(),
           '/signup': (context) => SignupScreen(),
           '/home': (context) => HomeScreen(),
@@ -76,17 +78,65 @@ class TourismApp extends StatelessWidget {
   }
 }
 
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
+  @override
+  _AuthWrapperState createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  bool _databaseInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeDatabase();
+  }
+
+  Future<void> _initializeDatabase() async {
+    // Wait for a moment to ensure providers are ready
+    await Future.delayed(Duration(milliseconds: 100));
+
+    try {
+      print('🔧 Initializing database from AuthWrapper...');
+      final databaseService = Provider.of<DatabaseService>(
+        context,
+        listen: false,
+      );
+      await databaseService.initializeDatabase();
+      print('✅ Database initialization complete');
+    } catch (e) {
+      print('❌ Error initializing database: $e');
+    }
+
+    setState(() {
+      _databaseInitialized = true;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final auth = Provider.of<AuthService>(context);
+    if (!_databaseInitialized) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 20),
+              Text('Initializing app...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final auth = Provider.of<AuthService>(context, listen: false);
     final user = Provider.of<AppUser?>(context);
 
+    // After database is initialized, check authentication state
     if (user == null) {
       return LoginScreen();
     }
-
-
 
     switch (user.role) {
       case UserRole.Tourist:

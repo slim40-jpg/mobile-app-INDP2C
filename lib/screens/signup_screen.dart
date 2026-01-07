@@ -1,4 +1,8 @@
+// screens/signup_screen.dart - UPDATED
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../services/auth_service.dart';
+import '../models/user.dart';
 
 class SignupScreen extends StatefulWidget {
   @override
@@ -11,222 +15,305 @@ class _SignupScreenState extends State<SignupScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  String _selectedRole = 'Tourist';
+  UserRole _selectedRole = UserRole.Tourist;
   bool _isLoading = false;
+  String _errorMessage = '';
 
-  void _signup() {
-    if (_formKey.currentState!.validate()) {
-      if (_passwordController.text != _confirmPasswordController.text) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Passwords do not match!'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
-      setState(() {
-        _isLoading = true;
-      });
-      Future.delayed(Duration(seconds: 2), () {
-        setState(() {
-          _isLoading = false;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Account created successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        Navigator.pop(context);
-      });
-    }
-  }
-
-  void _navigateToLogin() {
-    Navigator.pop(context);
-  }
+  // Additional fields for Agency
+  final _bioController = TextEditingController();
+  final _contactInfoController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Create Account'),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back),
-          onPressed: _navigateToLogin,
-        ),
+        title: Text('Sign Up'),
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
-            child: ListView(
-              children: [
-                Icon(
-                  Icons.person_add,
-                  size: 60,
-                  color: Colors.blue,
+      body: SingleChildScrollView(
+        padding: EdgeInsets.all(24),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Create Account',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
                 ),
-                SizedBox(height: 16),
-                Text(
-                  'Join TuniVoyage',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Join TuniVoyage to explore Tunisia',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey,
+                ),
+              ),
+              SizedBox(height: 32),
+
+              // Error Message
+              if (_errorMessage.isNotEmpty)
+                Container(
+                  padding: EdgeInsets.all(12),
+                  margin: EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red[200]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _errorMessage,
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                SizedBox(height: 8),
-                Text(
-                  'Create your account to start exploring',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey,
+
+              // Role Selection
+              Text(
+                'I want to join as:',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+              SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: ChoiceChip(
+                      label: Text('Tourist'),
+                      selected: _selectedRole == UserRole.Tourist,
+                      onSelected: (selected) {
+                        setState(() {
+                          _selectedRole = UserRole.Tourist;
+                        });
+                      },
+                    ),
                   ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: ChoiceChip(
+                      label: Text('Travel Agency'),
+                      selected: _selectedRole == UserRole.Agency,
+                      onSelected: (selected) {
+                        setState(() {
+                          _selectedRole = UserRole.Agency;
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 24),
+
+              // Basic Information
+              TextFormField(
+                controller: _nameController,
+                decoration: InputDecoration(
+                  labelText: 'Full Name',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person),
                 ),
-                SizedBox(height: 32),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter your name';
+                  }
+                  return null;
+                },
+              ),
+              SizedBox(height: 16),
+
+              TextFormField(
+                controller: _emailController,
+                decoration: InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.email),
+                ),
+                keyboardType: TextInputType.emailAddress,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter your email';
+                  }
+                  if (!value.contains('@')) {
+                    return 'Please enter a valid email';
+                  }
+                  return null;
+                },
+              ),
+              SizedBox(height: 16),
+
+              TextFormField(
+                controller: _passwordController,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock),
+                ),
+                obscureText: true,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter a password';
+                  }
+                  if (value.length < 6) {
+                    return 'Password must be at least 6 characters';
+                  }
+                  return null;
+                },
+              ),
+              SizedBox(height: 16),
+
+              TextFormField(
+                controller: _confirmPasswordController,
+                decoration: InputDecoration(
+                  labelText: 'Confirm Password',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock),
+                ),
+                obscureText: true,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please confirm your password';
+                  }
+                  if (value != _passwordController.text) {
+                    return 'Passwords do not match';
+                  }
+                  return null;
+                },
+              ),
+              SizedBox(height: 24),
+
+              // Additional fields for Agency
+              if (_selectedRole == UserRole.Agency) ...[
                 TextFormField(
-                  controller: _nameController,
+                  controller: _bioController,
                   decoration: InputDecoration(
-                    labelText: 'Full Name',
+                    labelText: 'Agency Bio',
                     border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person),
-                    hintText: 'Enter your full name',
+                    prefixIcon: Icon(Icons.business),
                   ),
+                  maxLines: 3,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please enter your name';
+                      return 'Please enter agency bio';
                     }
                     return null;
                   },
                 ),
                 SizedBox(height: 16),
+
                 TextFormField(
-                  controller: _emailController,
+                  controller: _contactInfoController,
                   decoration: InputDecoration(
-                    labelText: 'Email',
+                    labelText: 'Contact Information',
                     border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.email),
-                    hintText: 'Enter your email',
+                    prefixIcon: Icon(Icons.phone),
                   ),
-                  keyboardType: TextInputType.emailAddress,
+                  maxLines: 2,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please enter your email';
-                    }
-                    if (!value.contains('@')) {
-                      return 'Please enter a valid email';
+                      return 'Please enter contact information';
                     }
                     return null;
                   },
                 ),
-                SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: _selectedRole,
-                  decoration: InputDecoration(
-                    labelText: 'I am a',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.work),
-                  ),
-                  items: ['Tourist', 'Travel Agency']
-                      .map((role) => DropdownMenuItem(
-                    value: role,
-                    child: Text(role),
-                  ))
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedRole = value!;
-                    });
-                  },
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please select your role';
-                    }
-                    return null;
-                  },
-                ),
-                SizedBox(height: 16),
-                TextFormField(
-                  controller: _passwordController,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock),
-                    hintText: 'Create a password',
-                  ),
-                  obscureText: true,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter a password';
-                    }
-                    if (value.length < 6) {
-                      return 'Password must be at least 6 characters';
-                    }
-                    return null;
-                  },
-                ),
-                SizedBox(height: 16),
-                TextFormField(
-                  controller: _confirmPasswordController,
-                  decoration: InputDecoration(
-                    labelText: 'Confirm Password',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock_outline),
-                    hintText: 'Confirm your password',
-                  ),
-                  obscureText: true,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please confirm your password';
-                    }
-                    return null;
-                  },
-                ),
-                SizedBox(height: 32),
-                _isLoading
+                SizedBox(height: 24),
+              ],
+
+              // Sign Up Button
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: _isLoading
                     ? Center(child: CircularProgressIndicator())
                     : ElevatedButton(
                   onPressed: _signup,
                   child: Text(
-                    'Create Account',
+                    'Sign Up',
                     style: TextStyle(fontSize: 18),
                   ),
                   style: ElevatedButton.styleFrom(
-                    minimumSize: Size(double.infinity, 50),
                     backgroundColor: Colors.blue,
                   ),
                 ),
-                SizedBox(height: 16),
+              ),
 
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text("Already have an account?"),
-                    TextButton(
-                      onPressed: _navigateToLogin,
-                      child: Text(
-                        'Login',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue,
-                        ),
-                      ),
-                    ),
-                  ],
+              SizedBox(height: 16),
+              Center(
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.pushReplacementNamed(context, '/login');
+                  },
+                  child: Text('Already have an account? Login'),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
+  }
+
+  void _signup() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = '';
+      });
+
+      try {
+        final auth = Provider.of<AuthService>(context, listen: false);
+
+        Map<String, dynamic> additionalData = {};
+
+        if (_selectedRole == UserRole.Agency) {
+          additionalData = {
+            'bio': _bioController.text,
+            'contactInfo': _contactInfoController.text,
+          };
+        } else if (_selectedRole == UserRole.Tourist) {
+          additionalData = {
+            'preferences': [], // Empty preferences by default
+          };
+        }
+
+        final user = await auth.signup(
+          name: _nameController.text,
+          email: _emailController.text,
+          password: _passwordController.text,
+          role: _selectedRole,
+          additionalData: additionalData,
+        );
+
+        if (user != null) {
+          // Success - AuthWrapper will handle navigation
+          print('Signup successful! User ID: ${user.userId}');
+        }
+      } catch (e) {
+        setState(() {
+          _errorMessage = _getErrorMessage(e);
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  String _getErrorMessage(dynamic error) {
+    final errorStr = error.toString();
+    if (errorStr.contains('email-already-in-use')) {
+      return 'This email is already registered';
+    } else if (errorStr.contains('weak-password')) {
+      return 'Password is too weak';
+    } else if (errorStr.contains('network-request-failed')) {
+      return 'Network error. Check your connection';
+    } else {
+      return 'Signup failed. Please try again';
+    }
   }
 }

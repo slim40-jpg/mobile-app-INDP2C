@@ -2,7 +2,7 @@
 enum TripStatus { Draft, Pending, Approved, Rejected }
 
 class Trip {
-  final String tripId;
+  String tripId;
   String title;
   String description;
   String category;
